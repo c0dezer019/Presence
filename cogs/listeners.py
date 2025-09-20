@@ -3,7 +3,7 @@ import json
 
 # Third party modules
 import arrow
-from nextcord import Game, Guild, Member, Message, TextChannel, User
+from nextcord import Guild, Member, Message, TextChannel, User
 from nextcord.ext.commands import Bot, Cog
 from nextcord.utils import get
 
@@ -17,22 +17,6 @@ class Listeners(Cog):
     def __init__(self, bot: Bot):
         self.bot: Bot = bot
         self.ignore_list: tuple = ("?ping", "?reset", "?check", "?sync")
-
-    @Cog.listener()
-    async def on_ready(self):
-
-        print(f"{self.bot.user} is connected to the following guilds:")
-
-        for guild in self.bot.guilds:
-            health = "\033[32mOK\033[0m" if redis.exists(f"guild:{guild.id}:meta") else "\033[31mX\033[0m"
-
-            print(f"\033[4;35m{guild.name}\033[0m (id: \033[1;34m{guild.id}\033[0m), \033[32mhealth:\033[0m {health}")
-
-        print()  # An empty line for formatting.
-
-        await self.bot.sync_application_commands()
-
-        await self.bot.change_presence(activity=Game("Cops and Robbers"))
 
     @Cog.listener()
     async def on_member_join(self, member: Member):

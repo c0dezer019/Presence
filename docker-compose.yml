@@ -1,9 +1,10 @@
 services:
   redis:
     image: redis-local
-    container_name: redis2
+    container_name: presence-redis
+    command: redis-server --appendonly yes
     ports:
-      - 6379:6379
+      - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -18,7 +19,7 @@ services:
   bot:
     build:
       context: .
-      dockerfile: test.Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: presence
     depends_on:
       redis:
@@ -27,14 +28,18 @@ services:
       - TOKEN=${TOKEN}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - PYTHONUNBUFFERED=1
+    networks:
+      - app_network
     restart: unless-stopped
-    ports:
-      - 8000:8000
+    volumes:
+      - .:/app
+      - /app/.venv
+    stdin_open: true
+    tty: true
 
 volumes:
   redis_data:
-    driver: local
-  pipenv_cache:
     driver: local
 
 networks:

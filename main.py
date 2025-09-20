@@ -6,14 +6,16 @@ from logging.handlers import RotatingFileHandler
 
 # Third party modules
 from dotenv import load_dotenv
-from nextcord import Intents
+from nextcord import Game, Intents
 from nextcord.ext.commands import Bot
-from redis import Redis
 
-redis = Redis(host=os.getenv("REDIS_HOST", "redis"), port=os.getenv("REDIS_PORT", 6379), decode_responses=True)
+# Internal modules
+from utility.redis import create_redis_connection
 
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
+
+redis = create_redis_connection()
 
 description = """Got idle? Have no more"""
 intents = Intents.default()
@@ -32,6 +34,36 @@ extensions = [
     "cogs.user_cmds",
 ]
 ignore_list: tuple = ("?ping", "?reset", "?check")
+
+
+@bot.event
+async def on_ready():
+    global redis
+
+    if redis is None:
+        try:
+            redis = create_redis_connection()
+        except Exception as e:
+            logging.error("Still cannot connect to Redis: %s", e)
+
+    print(f"{bot.user} is connected to the following guilds:")
+
+    for guild in bot.guilds:
+        health = (
+            "\033[32mOK\033[0m"
+            if redis.exists(f"guild:{guild.id}:meta")
+            else "\033[31mX\033[0m"
+        )
+
+        print(
+            f"\033[4;35m{guild.name}\033[0m (id: \033[1;34m{guild.id}\033[0m), \033[32mhealth:\033[0m {health}"
+        )
+
+    print()  # An empty line for formatting.
+
+    await bot.sync_application_commands()
+
+    await bot.change_presence(activity=Game("Cops and Robbers"))
 
 
 @bot.event
