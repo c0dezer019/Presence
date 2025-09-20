@@ -1,0 +1,42 @@
+services:
+  redis:
+    image: redis-local
+    container_name: redis2
+    ports:
+      - 6379:6379
+    volumes:
+      - redis_data:/data
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "PING"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  bot:
+    build:
+      context: .
+      dockerfile: test.Dockerfile
+    container_name: presence
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - TOKEN=${TOKEN}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    restart: unless-stopped
+    ports:
+      - 8000:8000
+
+volumes:
+  redis_data:
+    driver: local
+  pipenv_cache:
+    driver: local
+
+networks:
+  app_network:
+    driver: bridge

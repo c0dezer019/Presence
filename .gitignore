@@ -160,7 +160,7 @@ cython_debug/
 .vscode
 
 # misc
-bot_log.txt
+bot_log.*
 storeTest.json
 
 *.code-workspace
