@@ -1,15 +1,15 @@
 # Standard modules
 import datetime
+import json
 from typing import Dict, Optional
 
 # Third party modules
 import arrow
 from nextcord import Interaction, Member, SlashOption, slash_command
 from nextcord.ext.commands import Bot, Cog
-from requests import Response
 
 # Internal modules
-import utility.request_handler as rh
+from main import redis
 from utility.helpers import _check_time_idle
 
 
@@ -25,29 +25,24 @@ class UserCommands(Cog):
         "and charts to illustrate the overall activity of a server.",
     }
 
-
     @slash_command(name="status")
     async def status_command(self, interaction: Interaction):
         pass
 
-
-    @status_command.subcommand(name = "member", description = help_lib["member_status"])
+    @status_command.subcommand(name="member", description=help_lib["member_status"])
     async def member_status_command(
-        self,
-        interaction: Interaction,
-        member: Optional[Member] = SlashOption(required=False)
+        self, interaction: Interaction, member: Optional[Member] = SlashOption(required=False)
     ):
-        response: Response = rh.get_members(member.id)
+        member = json.loads(redis.hgetall(f"guild:{interaction.guild.id}:member:{member.id}"))
 
-        response_as_dict: Dict = response.json()["member"]
-        iso_timestamp: str = response_as_dict["last_activity_ts"]
-        status: str = response_as_dict["status"]
+        iso_timestamp: str = member["last_activity_ts"]
+        status: str = member["status"]
         timestamp: datetime.datetime = arrow.get(iso_timestamp).datetime
         get_idle_time: Dict = _check_time_idle(timestamp)
 
         if status != "active":
             await interaction.response.send_message(
-                f'I\'m sorry, but {response_as_dict["username"]} is not currently active.'
+                f'I\'m sorry, but {member["name"]} is not currently active.'
             )
         else:
             idle_time: str = (
@@ -67,26 +62,25 @@ class UserCommands(Cog):
                 idle_time: str = f"{years} years, " + idle_time
 
             response_str: str = (
-                f'Last activity for {response_as_dict["username"]} was '
+                f'Last activity for {member["name"]} was '
                 f"performed {idle_time} ago."
             )
 
             await interaction.response.send_message(response_str)
 
-
-    @status_command.subcommand(name = "guild", description = help_lib["guild_status"])
+    @status_command.subcommand(name="guild", description=help_lib["guild_status"])
     async def guild_status_command(self, interaction: Interaction):
-        response: Response = rh.get_guilds(interaction.guild.id)
+        guild_m = json.loads(redis.hgetall(f"guild:{interaction.guild.id}:meta"))
+        guild_s = json.loads(redis.hgetall(f"guild:{interaction.guild.id}:stats"))
 
-        response_as_dict: Dict = response.json()["guild"]
-        iso_timestamp: str = response_as_dict["last_activity_ts"]
-        status: str = response_as_dict["status"]
+        iso_timestamp: str = guild_s["last_activity_ts"]
+        status: str = guild_m["status"]
         timestamp: datetime.datetime = arrow.get(iso_timestamp).datetime
         get_idle_time: Dict = _check_time_idle(timestamp)
 
         if status != "active":
             await interaction.response.send_message(
-                f'I\'m sorry, but {response_as_dict["name"]} is not currently active.'
+                f'I\'m sorry, but {guild_m["name"]} is not currently active.'
             )
         else:
             idle_time: str = (
@@ -106,17 +100,14 @@ class UserCommands(Cog):
                 idle_time: str = f"{years} years, " + idle_time
 
             response_str: str = (
-                f'Last activity for {response_as_dict["name"]} was '
-                f"performed {idle_time} ago."
+                f'Last activity for {guild_m["name"]} was ' f"performed {idle_time} ago."
             )
 
             await interaction.response.send_message(response_str)
 
-
-    @slash_command(name = "bot_performance_check", description = help_lib["bot_performance"])
+    @slash_command(name="bot_performance_check", description=help_lib["bot_performance"])
     async def performance_check_command(self, interaction: Interaction):
         pass
-
 
     @slash_command(name="guild_health", description=["guild_health"])
     async def guild_health(self, interaction: Interaction):

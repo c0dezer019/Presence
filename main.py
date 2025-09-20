@@ -5,9 +5,12 @@ import traceback
 from logging.handlers import RotatingFileHandler
 
 # Third party modules
+from dotenv import load_dotenv
 from nextcord import Intents
 from nextcord.ext.commands import Bot
-from dotenv import load_dotenv
+from redis import Redis
+
+redis = Redis(host=os.getenv("REDIS_HOST", "redis"), port=os.getenv("REDIS_PORT", 6379), decode_responses=True)
 
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
@@ -17,8 +20,9 @@ intents = Intents.default()
 intents.members = True
 intents.guilds = True
 intents.message_content = True
+intents.voice_states = True
 
-bot = Bot(description=description, intents=intents)
+bot = Bot(description=description, intents=intents, command_prefix="?")
 
 extensions = [
     "cogs.admin_cmds",
@@ -32,11 +36,11 @@ ignore_list: tuple = ("?ping", "?reset", "?check")
 
 @bot.event
 async def on_error(event, *args, **kwargs):
-    if len(args) > 0:
-        message = args[0]
+    if args:
+        ctx = args[0]
 
-        if message.guild is not None:
-            await message.guild.system_channel.send(
+        if hasattr(ctx, "guild") and ctx.guild is not None:
+            await ctx.guild.system_channel.send(
                 "I have encountered an error but do not worry, I will alert my owner."
             )
     logging.error(f"Error happened within {event}: {traceback.format_exc()}")
@@ -61,4 +65,4 @@ if __name__ == "__main__":
     for cog in extensions:
         bot.load_extension(cog)
 
-bot.run(TOKEN, reconnect=True)
+    bot.run(TOKEN, reconnect=True)

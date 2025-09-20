@@ -12,6 +12,7 @@ types-requests = "*"
 simplejson = "*"
 pydash = "*"
 nextcord = "*"
+redis = "*"
 
 [dev-packages]
 autopep8 = "*"
@@ -23,4 +24,7 @@ flake8 = "*"
 pylint = "*"
 
 [requires]
-python_full_version = "3.12.2"
+python_full_version = "3.13.7"
+
+[scripts]
+dev = "python main.py"

@@ -1,41 +1,81 @@
-# EnforcerBot
+# Presence
 
-Most Discord bots that I've seen do not provide actual user activity levels. I wanted to build a bot that monitors user idle times as well as
-automatically boot the user if idle for x amount of time. The bot is written in Python and will use threading to ensure that it performs reasonably. It will feature rich settings that server admin can set to ensure the bot only performs in a controlled, expected way desired by server admin.
+Most bots that monitor user activity only go by number of messages sent. Unlike those
+bots, Presence aims to measure time idle by monitoring the time between all activities,
+whether that is messages, joining a voice chat, or any other user action. Basically any
+action performed by a user is timestamped by the bot. The ultimate goal of Presence is
+to give server admins and owners a snapshot of activity in their servers, and beyond
+that, to help clean out inactive channels and users.
+
+Presence is written in Python using Nextcord and uses Redis for caching to reduce work on
+the backend. It is backed by a GraphQL + PostgreSQL backend for long-term persistence.
 
 ## Features
 
 - Long-term data persistence with PostgreSQL.
-- Logs user activity timestamps in the channels that it can see.
-- Calculates user idle times based off timestamp of last activity.
-- Flags a user as active or inactive based on a set idle time.
-- Sets an inactive role on inactive users.
-- Rich setting options settable by server admin.
+- Data caching with Redis for reduced read/write operations on the database and faster
+  data recall.
+- Uses GraphQL to further reduce the number of calls and the amount of data required.
+- Logs user activity timestamps in channels that the bot can see.
+- Calculates user idle times based on the timestamp of the last activity.
+- Flags a user as active or inactive based on a configured idle threshold.
+- Applies an inactive role to inactive users.
+- Auto-kicks inactive users after a configured timeout.
+- Rich settings configurable by server administrators.
 
-## **Usage Guide**
+## Setup
 
-Upon invitation to the server, the bot will catalogue every user on the server, storing their user 18-digit id and name w/ discriminator in order to tell one user from another. The bot uses the id to ensure quality of activity tracking. A Nitro user changing their discriminator could cause potential conflicts.
+In order to use Presence locally, you will need:
 
-The bot only stores the type, location, and timestamp of last activity and nothing else beyond a user's Discord identity.
+- Python 3.x
+- Redis Cloud (paid) or Open Source (free)
+- A Discord account
+- A [Discord Application](https://discord.com/developers/applications)
 
-### **Commands**
+### Adding bot to a server
 
-By default, commands are prefixed with a ? like many options, this can be changed if it ends up conflicting with the prefix of another bot with a similar command.
+1. Go to your Discord application, located using the link above.
+2. Navigate to the OAuth2 menu.
+3. In OAuth2 URL Generator, check bot.
+4. Presence by default needs the following permissions:
+   1. Kick Members
+   2. View Channels
+   3. Send Messages
+   4. Use Slash Commands
+5. Make sure integration type is set as Guild
+6. Navigate to the generated url (the rest is self explanatory)
 
-#### **?setup**
+## Usage Guide
 
-This command is only performable by server admin or users with the proper role. It is preferred that only admin use this command. Use case of this command will be rare. In the event the bot fails to perform it's on_guild_join() script correctly, this should be reported to the bot owner. Upon fix of said error, perform this command to initiate it manually without having to kick and re-invite the bot.
+Upon invitation to a server, the bot will catalogue every user on the server (except
+other bots), storing their 18-digit user ID so it can distinguish one user from another.
+The bot uses the ID to ensure consistent activity tracking.
 
-*This is only a temporary command until I can think of a better use of the API to do this automatically.*
+### Commands
 
-#### **?set <setting> <\*args>**
+Presence primarily uses slash commands, but still includes some prefixed commands used
+mainly for developer-only operations.
 
-This command will set the desired settings with the specified values separated by spaces.
+#### Developer Commands
 
-#### **?check <channel/user>**
+##### **?reset**
 
-Checks the idle time from last activity for the specified entity.
+The purpose of this command is in its name: it resets all data associated with the
+guild where it is run. The bot will temporarily disconnect to prevent new data from
+being recorded during the reset. Redis values will be cleared and a reset request will
+be sent to the backend where a soft reset will be performed (values returned to
+defaults).
 
-#### **?warn <user> <msg>**
+##### **?delete <type> <target_id>**
 
-If for some reason you want to warn a user on activity levels before the bot does, this is how you do it. The msg is temporary, the bot will have its own default warning message.
+This commmand will delete all data on target from Redis and perform a hard reset on the
+backend (delete db rows and re-add).
+
+##### **?reload <cog?>**
+
+Reloads all or a specified cog. Useful when a command is changed, removed, or added.
+
+##### **?setup**
+
+Runs the setup sequence (for development purposes, if the bot did not successfully
+perform on_guild_join functions).

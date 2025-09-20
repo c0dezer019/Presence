@@ -1,15 +1,15 @@
 # Standard modules
 import json
-from typing import Dict
 
 # Third party modules
 import arrow
 from nextcord import Game, Guild, Member, Message, TextChannel, User
-from nextcord.utils import get
 from nextcord.ext.commands import Bot, Cog
+from nextcord.utils import get
 
 # Internal modules
 import utility.request_handler as rh
+from main import redis
 from utility.helpers import _check_time_idle
 
 
@@ -20,17 +20,17 @@ class Listeners(Cog):
 
     @Cog.listener()
     async def on_ready(self):
+
         print(f"{self.bot.user} is connected to the following guilds:")
 
         for guild in self.bot.guilds:
-            print(f"{guild.name}(id: {guild.id})")
+            health = "\033[32mOK\033[0m" if redis.exists(f"guild:{guild.id}:meta") else "\033[31mX\033[0m"
+
+            print(f"\033[4;35m{guild.name}\033[0m (id: \033[1;34m{guild.id}\033[0m), \033[32mhealth:\033[0m {health}")
 
         print()  # An empty line for formatting.
 
-        guilds = rh.get_guilds().json()["guilds"]
-
-        with open("utility/storeTest.json", "w") as file:
-            json.dump(guilds, file, indent=3)
+        await self.bot.sync_application_commands()
 
         await self.bot.change_presence(activity=Game("Cops and Robbers"))
 
@@ -50,55 +50,56 @@ class Listeners(Cog):
             await general.send("Welcome {0.mention}!".format(member))
 
         try:
-            rh.add_member(member.guild.id, member)
+            member = rh.member(member.guild.id, member)
+
+            r_data = {k: "" if v is None else str(v) for k, v in member}
+            r_data["name"] = member.display_name if not member.nick else member.nick
+            r_data["status"] = member.status
+
+            redis.hset(f"member:{member.id}@{member.guild.id}", mapping=r_data)
 
         except Exception:
             raise
 
     @Cog.listener()
     async def on_message(self, message: Message):
-        if message.guild is not None:
+        hset = redis.hset
+
+        if message.guild is not None and message.author.status != "invisible":
             if message.content.startswith(self.ignore_list):
                 return
 
             if not message.author.bot:
-                dt: arrow.Arrow = arrow.now("US/Central")
-                get_time_idle: dict = _check_time_idle(dt.datetime)
-
-                with open("utility/storeTest.json", "r") as file:
-                    data: Dict = json.load(file)
-
-                guild_index: int = next(
-                    (
-                        index
-                        for index, d in enumerate(data)
-                        if d["guild_id"] == message.guild.id
-                    ),
-                    None,
+                dt: arrow.Arrow = arrow.utcnow().datetime
+                get_time_idle: dict = _check_time_idle(dt)
+                idle_stats: dict[str, int | list] = json.loads(
+                    redis.hget(f"guild_id:{message.guild.id}", "idleStats")
                 )
-                member_index: int = next(
-                    (
-                        index
-                        for index, d in enumerate(data[guild_index]["members"])
-                        if d["member_id"] == message.author.id
-                    ),
-                    None,
+                last_loc = json.loads(redis.hget(f"guild_id:{message.guild.id}", "lastAct"))
+                last_loc["ch"] = message.channel.id
+                last_loc["type"] = str(message.channel.type)
+                last_loc["ts"] = arrow.utcnow().isoformat()
+
+                hset(f"guild_id:{message.guild.id}", "last_loc", mapping=last_loc)
+
+                idle_stats["timesIdle"].append(get_time_idle)
+
+                if idle_stats["avgIdleTime"]:
+                    idle_stats["prevAvgs"].append(idle_stats["avgIdleTime"])
+                else:
+                    pass
+
+                idle_stats["avgIdleTime"] = sum(idle_stats["timesIdle"]) / len(
+                    idle_stats["timesIdle"]
                 )
-                data: dict = {
-                    "guild": data["guilds"][guild_index],
-                    "member": data["guilds"][guild_index]["members"][member_index],
-                }
 
-                for k in data.keys():
-                    k = k["idle_stats"]
-                    k["times_idle"].append(get_time_idle)  # History of times idle.
-                    k["avg_idle_time"] = sum(k["times_idle"]) / len(
-                        k["times_idle"]
-                    )  # Current idle time averages
-                    k["previous_avgs"].append(k["avg_idle_time"])  # Past averages
+                if len(idle_stats["timesIdle"]) > 50:
+                    idle_stats["timesIdle"].remove(idle_stats["timesIdle"][0])
 
-                    if len(k["times_idle"]) > 50:
-                        k["times_idle"].remove(k["times_idle"][0])
+                if len(idle_stats["prevAvgs"]) > 50:
+                    idle_stats["prevAvgs"].remove(idle_stats["prevAvgs"][0])
+
+                hset(f"guild_id:{message.guild.id}", "idleStats", mapping=idle_stats)
 
         elif (
             not message.guild
@@ -142,7 +143,7 @@ class Listeners(Cog):
         with open("utility/storeTest.json", "rw") as file:
             data: Dict = json.load(file)
 
-        guild_index: int = next(
+        guild_idx: int = next(
             (
                 index
                 for (index, d) in enumerate(data)
@@ -150,10 +151,10 @@ class Listeners(Cog):
             ),
             None,
         )
-        member_index: int = next(
+        member_idx: int = next(
             (
                 index
-                for (index, d) in enumerate(data[guild_index]["members"])
+                for (index, d) in enumerate(data[guild_idx]["members"])
                 if d["member_id"] == member.id
             ),
             None,

@@ -6,10 +6,12 @@ from typing import List
 # from discord import Forbidden, HTTPException
 from nextcord.ext.commands import Bot, Cog
 from nextcord.ext.tasks import loop
+from redis.exceptions import ConnectionError
 
 # Internal modules
 import utility.request_handler as rh
 from lib.typings import PurgeList
+from main import redis
 
 
 class Automated(Cog):
@@ -19,6 +21,13 @@ class Automated(Cog):
 
     def cog_unload(self):
         pass
+
+    @loop(seconds=300)
+    async def ping(self):
+        try:
+            redis.ping()
+        except ConnectionError:
+            pass
 
     @loop(seconds=86400)
     async def purge(self):

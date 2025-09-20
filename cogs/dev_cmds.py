@@ -5,7 +5,6 @@ from typing import Optional
 
 # Third party modules
 from nextcord.ext.commands import CheckFailure, Cog, Context, command
-# Third party packages
 
 # Internal modules
 import utility.request_handler as rh
@@ -16,10 +15,7 @@ class DevCommands(Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @command(
-        hidden=True,
-        help=""
-    )
+    @command(hidden=True, help="")
     @user_is_bot_developer()
     async def sync(self, ctx: Context):
         if ctx.message.guild.id != 820891105322074113:
@@ -38,8 +34,7 @@ class DevCommands(Cog):
         sys_chan = guild.system_channel
 
         # Add guild
-        guild_info = {"guild_id": guild.id, "name": guild.name}
-        response = rh.add_guild(guild_info)
+        response = rh.guild(guild.id)
 
         if response.status_code != 200:
             await sys_chan.send(
@@ -51,7 +46,7 @@ class DevCommands(Cog):
 
         # Add members
         for member in guild.members:
-            response = rh.add_member(guild.id, member)
+            response = rh.member(guild.id, member)
 
         if response == 200:
             await sys_chan.send(
@@ -85,9 +80,13 @@ class DevCommands(Cog):
 
     @reload.error
     async def reload_error(self, ctx: Context, error):
-
         if isinstance(error, CheckFailure):
             await ctx.reply("Sorry, but this is a command reserved for the developer.")
+
+    @command(hidden=True, help="Sets up server in the database if there isn't one.")
+    @user_is_bot_developer()
+    async def setup(self, ctx: Context):
+        await ctx.message.guild.system_channel.send('Guild initializing.')
 
 
 def setup(bot):
