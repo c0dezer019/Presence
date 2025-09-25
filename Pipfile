@@ -13,6 +13,7 @@ simplejson = "*"
 pydash = "*"
 nextcord = "*"
 redis = "*"
+pydantic = "*"
 
 [dev-packages]
 autopep8 = "*"

@@ -4,11 +4,12 @@ import traceback
 from time import perf_counter, perf_counter_ns
 from typing import Dict, List, TypedDict
 
-# Third party modules
 # Third-party modules
 import requests
 from nextcord import Member
 from requests import Response
+
+from lib.typings import Member as GQLMember, DiscordGuild
 
 api_url_dev = "http://localhost:8000/gql"
 api_base_url_prod = "https://combot.bblankenship.me/v1/"
@@ -112,7 +113,7 @@ def add_to_purge_list(guild_id: int, member_id: int):
     return response
 
 
-def guild(guild_id: int):
+def guild(guild_id: int) -> DiscordGuild:
     func_start = perf_counter()
 
     payload: Query = {
@@ -177,7 +178,7 @@ def guild(guild_id: int):
 
 
 # Will get a specified guild or all guilds if no id is specified.
-def get_guilds():
+def get_guilds() -> list[DiscordGuild]:
     func_start = perf_counter()
     payload: Query = {
         "query": """
@@ -234,14 +235,14 @@ def get_guilds():
         f"Operation finished in {time_to_complete} seconds.\n-------------------------"
     )
 
-    return response.json()["data"]["guild"]["guild"]
+    return response.json()["data"]["guild"]["guilds"]
 
 
 def reset_guild(guild_id: int):
     logging.info(f"Resetting guild data for guild {guild_id}.")
 
 
-def get_members():
+def get_members() -> GQLMember:
     func_start: float = perf_counter()
 
     payload: Query = {
@@ -288,7 +289,7 @@ def get_members():
     return response.json()["data"]["member"]["member"]
 
 
-def member(guild_id: int, member: Member):
+def member(guild_id: int, member: Member) -> GQLMember:
     logging.info("Attempting to fetch a member...")
 
     func_start: float = perf_counter()
@@ -341,7 +342,7 @@ def member(guild_id: int, member: Member):
     return response.json()["data"]["member"]["member"]
 
 
-def update_guild(guild_id: int, **data):
+def update_guild(guild_id: int, **data) -> DiscordGuild:
     logging.info("Updating guild...")
     func_start: float = perf_counter()
 
@@ -375,10 +376,7 @@ def update_guild(guild_id: int, **data):
                 }
             }
         """,
-        "variables": {
-            "guildId": guild_id,
-            "input": {k: v for k, v in data}
-        },
+        "variables": {"guildId": guild_id, "input": {k: v for k, v in data}},
     }
 
     logging.info("Building payload...")
@@ -424,11 +422,11 @@ def update_guild(guild_id: int, **data):
         f"Operation finished in {time_to_complete} seconds.\n-------------------------"
     )
 
-    return guild
+    return guild.json()["data"]["guild"]["guild"]
 
 
 # data - Received as 'nickname', 'last_activity', etc
-def update_member(guild_id: int, member_id: int, **data):
+def update_member(guild_id: int, member_id: int, **data) -> GQLMember:
     func_start: float = perf_counter()
 
     payload: Query = {
@@ -469,7 +467,7 @@ def update_member(guild_id: int, member_id: int, **data):
         "variables": {
             "guild_id": guild_id,
             "memberId": member_id,
-            "input": {k: v for k, v in data}
+            "input": {k: v for k, v in data},
         },
     }
 
@@ -512,7 +510,7 @@ def update_member(guild_id: int, member_id: int, **data):
         f"Operation finished in {time_to_complete} seconds.\n-------------------------"
     )
 
-    return 200
+    return member.json()["data"]["member"]["member"]
 
 
 def remove_guild(guild_id: int):
@@ -536,7 +534,7 @@ def remove_guild(guild_id: int):
     func_end: float = perf_counter()
     time_to_complete: float = func_end - func_start
 
-    if guild.status_code == 200:
+    if guild.json()["data"]["guild"]["code"] == 200:
         logging.info("Guild removed.")
         logging.info(
             f"Operation finished in {time_to_complete} seconds.\n-------------------------"
@@ -546,8 +544,6 @@ def remove_guild(guild_id: int):
         logging.info(
             f"Operation finished in {time_to_complete} seconds.\n-------------------------"
         )
-
-    return guild
 
 
 def remove_member(member_id: int):
@@ -573,7 +569,7 @@ def remove_member(member_id: int):
     func_end: float = perf_counter()
     time_to_complete: float = func_end - func_start
 
-    if member.status_code == 200:
+    if member.json()["data"]["member"]["code"] == 200:
         logging.info("Member removed.")
         logging.info(
             f"Operation finished in {time_to_complete} seconds.\n-------------------------"
@@ -583,5 +579,3 @@ def remove_member(member_id: int):
         logging.info(
             f"Operation finished in {time_to_complete} seconds.\n-------------------------"
         )
-
-    return member

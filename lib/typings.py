@@ -1,53 +1,51 @@
-# Standard packages
 # Standard modules
 from datetime import datetime
-from typing import Dict, List, TypedDict
+
+# Third party modules
+from pydantic import BaseModel, Field
 
 
-class Activity(TypedDict):
+class Activity(BaseModel):
     type: str
-    location: int
-    timestamp: datetime
+    ch: int
+    ts: datetime
 
 
-class IdleStats(TypedDict):
-    times_idle: List[int]
-    avg_idle_time: int
-    previous_avgs: List[int]
+class IdleStats(BaseModel):
+    times_idle: list[int] = Field(alias="timesIdle")
+    avg_idle_time: int = Field(alias="avgIdleTime")
+    prev_avgs: list[int] = Field(alias="prevAvgs")
 
 
-class Member(TypedDict):
-    id: int
-    member_id: int
-    username: str
-    nickname: str
-    last_activity: Activity
-    idle_stats: IdleStats
+class Member(BaseModel):
+    member_id: int = Field(alias="memberId")
+    admin_access: bool = Field(alias="adminAccess")
+    flags: list[str]
+    last_act: Activity = Field(alias="lastAct")
+    idle_stats: IdleStats = Field(alias="idleStats")
     status: str
-    date_added: datetime
+    date_added: datetime = Field(alias="dateAdded")
 
 
-class Settings(TypedDict):
+class Settings(BaseModel):
     kick_inactive_members: bool
-    time_before_inactive: List[int]
+    time_before_inactive: list[int]
 
 
-class DiscordGuild(TypedDict):
-    id: int
-    guild_id: int
-    name: str
-    last_activity: Activity
-    idle_stats: IdleStats
+class DiscordGuild(BaseModel):
+    guild_id: int = Field(alias="guildId")
+    last_act: Activity = Field(alias="lastAct")
+    idle_stats: IdleStats = Field(alias="idleStats")
     status: str
     settings: Settings
-    members: List[Member]
+    members: list[Member]
 
 
-class PurgeList(TypedDict):
+class PurgeList(BaseModel):
     guild_id: int
     member_id: int
 
 
-class Query(TypedDict):
+class Query(BaseModel):
     query: str
-    variables: Dict[str, str]
+    variables: dict[str, str]
