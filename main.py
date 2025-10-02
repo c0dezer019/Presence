@@ -1,4 +1,5 @@
 # Standard modules
+import asyncio
 import logging
 import os
 import traceback
@@ -8,14 +9,15 @@ from logging.handlers import RotatingFileHandler
 from dotenv import load_dotenv
 from nextcord import Game, Intents
 from nextcord.ext.commands import Bot
+from redis.exceptions import ConnectionError
 
 # Internal modules
-from utility.redis import create_redis_connection
+from utility.redis import AsyncRedisManager
 
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
 
-redis = create_redis_connection()
+redis = AsyncRedisManager().client
 
 description = """Got idle? Have no more"""
 intents = Intents.default()
@@ -41,17 +43,26 @@ async def on_ready():
     global redis
 
     if redis is None:
+        redis = AsyncRedisManager().client
+
+    while True:
         try:
-            redis = create_redis_connection()
+            if await redis.ping():
+                logging.info("Redis successfully connected.")
+                break
+        except ConnectionError as e:
+            logging.error("Cannot connect to Redis: %s", e)
         except Exception as e:
-            logging.error("Still cannot connect to Redis: %s", e)
+            logging.error("Connect connect to Redis: %s", e)
+
+        await asyncio.sleep(5)
 
     print(f"{bot.user} is connected to the following guilds:")
 
     for guild in bot.guilds:
         health = (
             "\033[32mOK\033[0m"
-            if redis.exists(f"guild:{guild.id}:meta")
+            if await redis.exists(f"guild:{guild.id}:meta")
             else "\033[31mX\033[0m"
         )
 

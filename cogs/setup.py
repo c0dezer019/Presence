@@ -32,7 +32,6 @@ class Setup(Cog):
     @bot_has_guild_permissions(administrator=True)
     async def setup(self, guild: Guild):
         sys_chan = guild.system_channel
-
         response = rh.guild(guild.id, guild.name)
 
         if response["code"] != 200:
@@ -46,6 +45,7 @@ class Setup(Cog):
                     "guild_id": response["guild"]["guildId"],
                     "name": guild.name,
                     "status": response["guild"]["status"],
+                    "settings": response["guild"]["settings"],
                     "date_added": response["guild"]["dateAdded"]
                 }
                 redis.hset(f"guild:{guild.id}:meta", mapping=meta)
@@ -53,7 +53,6 @@ class Setup(Cog):
                 stats = {
                     "last_act": response["guild"]["lastAct"],
                     "idle_stats": response["guild"]["idleStats"],
-                    "settings": response["guild"]["settings"]
                 }
                 redis.hset(f"guild:{guild.id}:stats", mapping=stats)
 

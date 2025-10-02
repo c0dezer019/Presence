@@ -1,6 +1,3 @@
-# Standard modules
-import json
-
 # Third party modules
 import arrow
 from nextcord import Guild, Member, Message, TextChannel, User
@@ -10,7 +7,7 @@ from nextcord.utils import get
 # Internal modules
 import utility.request_handler as rh
 from main import redis
-from utility.helpers import _check_time_idle
+from lib.typings import Member as GQLMember
 
 
 class Listeners(Cog):
@@ -34,56 +31,37 @@ class Listeners(Cog):
             await general.send("Welcome {0.mention}!".format(member))
 
         try:
-            member = rh.member(member.guild.id, member)
+            db_member: GQLMember = rh.member(member.guild.id, member)
 
-            r_data = {k: "" if v is None else str(v) for k, v in member}
-            r_data["name"] = member.display_name if not member.nick else member.nick
-            r_data["status"] = member.status
+            r_data = {
+                "name": member.display_name if not member.nick else member.nick,
+                "status": db_member.status if db_member is not None else "new",
+                "admin_access": db_member.admin_access if db_member is not None else False,
+                "flags": db_member.flags if db_member is not None else [],
+                "discord_status": member.status
+            }
 
-            redis.hset(f"member:{member.id}@{member.guild.id}", mapping=r_data)
+            redis.hset(f"member:{member.id}:{member.guild.id}:meta", mapping=r_data)
 
         except Exception:
             raise
 
     @Cog.listener()
     async def on_message(self, message: Message):
-        hset = redis.hset
-
         if message.guild is not None and message.author.status != "invisible":
             if message.content.startswith(self.ignore_list):
                 return
 
             if not message.author.bot:
-                dt: arrow.Arrow = arrow.utcnow().datetime
-                get_time_idle: dict = _check_time_idle(dt)
-                idle_stats: dict[str, int | list] = json.loads(
-                    redis.hget(f"guild_id:{message.guild.id}", "idleStats")
-                )
-                last_loc = json.loads(redis.hget(f"guild_id:{message.guild.id}", "lastAct"))
-                last_loc["ch"] = message.channel.id
-                last_loc["type"] = str(message.channel.type)
-                last_loc["ts"] = arrow.utcnow().isoformat()
+                expire_at: arrow.Arrow = arrow.utcnow().shift(minutes=10)
+                block_key = f"session:{message.author.id}:{message.guild.id}:expires_at"
 
-                hset(f"guild_id:{message.guild.id}", "last_loc", mapping=last_loc)
+                await redis.hset(f"member:{message.author.id}:{message.guild.id}:meta", "idles_at", expire_at.int_timestamp)
 
-                idle_stats["timesIdle"].append(get_time_idle)
-
-                if idle_stats["avgIdleTime"]:
-                    idle_stats["prevAvgs"].append(idle_stats["avgIdleTime"])
+                if await redis.exists(block_key):
+                    await redis.hexpireat(block_key, expire_at)
                 else:
-                    pass
-
-                idle_stats["avgIdleTime"] = sum(idle_stats["timesIdle"]) / len(
-                    idle_stats["timesIdle"]
-                )
-
-                if len(idle_stats["timesIdle"]) > 50:
-                    idle_stats["timesIdle"].remove(idle_stats["timesIdle"][0])
-
-                if len(idle_stats["prevAvgs"]) > 50:
-                    idle_stats["prevAvgs"].remove(idle_stats["prevAvgs"][0])
-
-                hset(f"guild_id:{message.guild.id}", "idleStats", mapping=idle_stats)
+                    await redis.setex(block_key, expire_at, expire_at)
 
         elif (
             not message.guild

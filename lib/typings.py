@@ -5,6 +5,11 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
+class Query(BaseModel):
+    query: str
+    variables: dict
+
+
 class Activity(BaseModel):
     type: str
     ch: int
@@ -44,8 +49,3 @@ class DiscordGuild(BaseModel):
 class PurgeList(BaseModel):
     guild_id: int
     member_id: int
-
-
-class Query(BaseModel):
-    query: str
-    variables: dict[str, str]
